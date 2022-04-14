@@ -1,3 +1,8 @@
+# 4.0.0
+- Upgraded the altbeacon sdk to the latest version.
+- Modified the codes used as the sdk deprecated some functions.
+- Updated some naming conventions within the plugin.xml.
+
 # 3.8.1
 - Fixing botched plugin id in release of v3.8.0.
 

@@ -1,3 +1,23 @@
+## Forked Repository
+
+This is a forked repository from [https://github.com/petermetz/cordova-plugin-ibeacon](https://github.com/petermetz/cordova-plugin-ibeacon).
+
+The purpose of this forked repository is to extend the capability of the plugin.
+
+### Changes
+
+See the CHANGELOG.md for more details.
+
+Android
+
+* 4.0.0 - Upgraded the altbeacon sdk to the latest version. Modified the codes used as the sdk deprecated some functions. Updated some naming conventions within the plugin.xml.
+
+---
+
+Below contains the original content of README.md file from the main author of the plugin.
+
+---
+
 <!---
  license: Licensed to the Apache Software Foundation (ASF) under one
          or more contributor license agreements.  See the NOTICE file
