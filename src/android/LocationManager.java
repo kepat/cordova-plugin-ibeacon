@@ -39,7 +39,6 @@ import android.os.RemoteException;
 import android.util.Log;
 
 import org.altbeacon.beacon.Beacon;
-import org.altbeacon.beacon.BeaconConsumer;
 import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 
@@ -73,10 +72,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
-public class LocationManager extends CordovaPlugin implements BeaconConsumer {
+public class LocationManager extends CordovaPlugin {
 
     public static final String TAG = "com.unarin.beacon";
-    private static final int PERMISSION_REQUEST_COARSE_LOCATION = 1;
+    private static final int PERMISSION_REQUEST = 1;
     private static final String FOREGROUND_BETWEEN_SCAN_PERIOD_NAME = "com.unarin.cordova.beacon.android.altbeacon.ForegroundBetweenScanPeriod";
     private static final String FOREGROUND_SCAN_PERIOD_NAME = "com.unarin.cordova.beacon.android.altbeacon.ForegroundScanPeriod";
     private static final int DEFAULT_FOREGROUND_BETWEEN_SCAN_PERIOD = 0;
@@ -177,7 +176,6 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
      */
     @Override
     public void onDestroy() {
-        iBeaconManager.unbind(this);
 
         if (broadcastReceiver != null) {
             cordova.getActivity().unregisterReceiver(broadcastReceiver);
@@ -261,7 +259,6 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
     private void initLocationManager() {
         iBeaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
-        iBeaconManager.bind(this);
     }
 
     private BeaconTransmitter createOrGetBeaconTransmitter() {
@@ -269,7 +266,7 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
             final BeaconParser beaconParser = new BeaconParser()
                 .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24");
 
-            this.beaconTransmitter = new BeaconTransmitter(getApplicationContext(), beaconParser);
+            this.beaconTransmitter = new BeaconTransmitter(cordova.getActivity(), beaconParser);
         }
         return this.beaconTransmitter;
     }
@@ -296,13 +293,17 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
         try {
 
-            final Integer permissionCheckResult = (Integer) checkSelfPermissionMethod.invoke(
+            final Integer permissionCoarseCheckResult = (Integer) checkSelfPermissionMethod.invoke(
                     activity, Manifest.permission.ACCESS_COARSE_LOCATION);
+            final Integer permissionFineCheckResult = (Integer) checkSelfPermissionMethod.invoke(
+                    activity, Manifest.permission.ACCESS_FINE_LOCATION);
+            final Integer permissionBackgroundCheckResult = (Integer) checkSelfPermissionMethod.invoke(
+                    activity, Manifest.permission.ACCESS_BACKGROUND_LOCATION);
 
             Log.i(TAG, "Permission check result for ACCESS_COARSE_LOCATION: " +
-                    String.valueOf(permissionCheckResult));
+                    String.valueOf(permissionCoarseCheckResult));
 
-            if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+            if (permissionCoarseCheckResult == PackageManager.PERMISSION_GRANTED && permissionFineCheckResult == PackageManager.PERMISSION_GRANTED && permissionBackgroundCheckResult == PackageManager.PERMISSION_GRANTED) {
                 Log.i(TAG, "Permission for ACCESS_COARSE_LOCATION has already been granted.");
                 return;
             }
@@ -327,8 +328,8 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
                     try {
                         requestPermissionsMethod.invoke(activity,
-                                new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
-                                PERMISSION_REQUEST_COARSE_LOCATION
+                                new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                                PERMISSION_REQUEST
                         );
                     } catch (IllegalAccessException e) {
                         Log.e(TAG, "IllegalAccessException while requesting permission for " +
@@ -501,7 +502,7 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
     private void createMonitorCallbacks(final CallbackContext callbackContext) {
 
         //Monitor callbacks
-        iBeaconManager.setMonitorNotifier(new MonitorNotifier() {
+        iBeaconManager.addMonitorNotifier(new MonitorNotifier() {
             @Override
             public void didEnterRegion(Region region) {
                 debugLog("didEnterRegion INSIDE for " + region.getUniqueId());
@@ -553,7 +554,7 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
     private void createRangingCallbacks(final CallbackContext callbackContext) {
 
-        iBeaconManager.setRangeNotifier(new RangeNotifier() {
+        iBeaconManager.addRangeNotifier(new RangeNotifier() {
             @Override
             public void didRangeBeaconsInRegion(final Collection<Beacon> iBeacons, final Region region) {
 
@@ -846,17 +847,12 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
                 Region region = null;
                 try {
                     region = parseRegion(arguments);
-                    iBeaconManager.startMonitoringBeaconsInRegion(region);
+                    iBeaconManager.startMonitoring(region);
 
                     PluginResult result = new PluginResult(PluginResult.Status.OK);
                     result.setKeepCallback(true);
                     beaconServiceNotifier.didStartMonitoringForRegion(region);
                     return result;
-
-                } catch (RemoteException e) {
-                    Log.e(TAG, "'startMonitoringForRegion' service error: " + e.getCause());
-                    beaconServiceNotifier.monitoringDidFailForRegion(region, e);
-                    return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
                 } catch (Exception e) {
                     Log.e(TAG, "'startMonitoringForRegion' exception " + e.getCause());
                     beaconServiceNotifier.monitoringDidFailForRegion(region, e);
@@ -877,15 +873,11 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
                 try {
                     Region region = parseRegion(arguments);
-                    iBeaconManager.stopMonitoringBeaconsInRegion(region);
+                    iBeaconManager.stopMonitoring(region);
 
                     PluginResult result = new PluginResult(PluginResult.Status.OK);
                     result.setKeepCallback(true);
                     return result;
-
-                } catch (RemoteException e) {
-                    Log.e(TAG, "'stopMonitoringForRegion' service error: " + e.getCause());
-                    return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
                 } catch (Exception e) {
                     Log.e(TAG, "'stopMonitoringForRegion' exception " + e.getCause());
                     return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
@@ -905,15 +897,11 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
                 try {
                     Region region = parseRegion(arguments);
-                    iBeaconManager.startRangingBeaconsInRegion(region);
+                    iBeaconManager.startRangingBeacons(region);
 
                     PluginResult result = new PluginResult(PluginResult.Status.OK);
                     result.setKeepCallback(true);
                     return result;
-
-                } catch (RemoteException e) {
-                    Log.e(TAG, "'startRangingBeaconsInRegion' service error: " + e.getCause());
-                    return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
                 } catch (Exception e) {
                     Log.e(TAG, "'startRangingBeaconsInRegion' exception " + e.getCause());
                     return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
@@ -930,15 +918,11 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
 
                 try {
                     Region region = parseRegion(arguments);
-                    iBeaconManager.stopRangingBeaconsInRegion(region);
+                    iBeaconManager.stopRangingBeacons(region);
 
                     PluginResult result = new PluginResult(PluginResult.Status.OK);
                     result.setKeepCallback(true);
                     return result;
-
-                } catch (RemoteException e) {
-                    Log.e(TAG, "'stopRangingBeaconsInRegion' service error: " + e.getCause());
-                    return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
                 } catch (Exception e) {
                     Log.e(TAG, "'stopRangingBeaconsInRegion' exception " + e.getCause());
                     return new PluginResult(PluginResult.Status.ERROR, e.getMessage());
@@ -1527,30 +1511,6 @@ public class LocationManager extends CordovaPlugin implements BeaconConsumer {
         if (debugEnabled) {
             Log.w(TAG, message);
         }
-    }
-
-    //////// IBeaconConsumer implementation /////////////////////
-
-    @Override
-    public void onBeaconServiceConnect() {
-        debugLog("Connected to IBeacon service");
-    }
-
-    @Override
-    public Context getApplicationContext() {
-        return cordova.getActivity();
-    }
-
-    @Override
-    public void unbindService(ServiceConnection connection) {
-        debugLog("Unbind from IBeacon service");
-        cordova.getActivity().unbindService(connection);
-    }
-
-    @Override
-    public boolean bindService(Intent intent, ServiceConnection connection, int mode) {
-        debugLog("Bind to IBeacon service");
-        return cordova.getActivity().bindService(intent, connection, mode);
     }
 
 }

@@ -17,10 +17,10 @@
  under the License.
  */
 
-var _ = require('com.unarin.cordova.beacon.underscorejs');
-var CircularRegion = require('com.unarin.cordova.beacon.CircularRegion');
-var BeaconRegion = require('com.unarin.cordova.beacon.BeaconRegion');
-var Region = require('com.unarin.cordova.beacon.Region');
+var _ = require('cordova-plugin-ibeacon.underscorejs');
+var CircularRegion = require('cordova-plugin-ibeacon.CircularRegion');
+var BeaconRegion = require('cordova-plugin-ibeacon.BeaconRegion');
+var Region = require('cordova-plugin-ibeacon.Region');
 
 
 /**

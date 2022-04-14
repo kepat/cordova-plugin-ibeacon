@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
-<plugin id="com.unarin.cordova.beacon" version="3.8.1" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+<plugin id="cordova-plugin-ibeacon" version="4.0.0" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
 
     <name>Proximity Beacon Plugin</name>
     <description>Proximity Beacon Monitoring and Transmission Plugin (supporting iBeacons)</description>
     <license>Apache 2.0</license>
     <keywords>cordova,ibeacon,beacon,bluetooth,le</keywords>
-    <repo>https://github.com/petermetz/cordova-plugin-ibeacon.git</repo>
+    <repo>https://github.com/kepat/cordova-plugin-ibeacon</repo>
 
     <!-- Version is set to anything because the only feature we use is the device.platform property which was available
     since forever. The added benefit is that we don't force the consumers of this plugin to use a certain version of
@@ -94,6 +94,11 @@
 
         <config-file target="AndroidManifest.xml" parent="/manifest">
 			<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
         </config-file>
 
         <source-file src="src/android/LocationManager.java" target-dir="src/com/unarin/cordova/beacon" />
