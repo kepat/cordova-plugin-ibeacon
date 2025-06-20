@@ -185,26 +185,22 @@ public class LocationManager extends CordovaPlugin {
         // Android 9 (API 28) and lower
         // Users MUST accept ACCESS_COARSE_LOCATION
         List<String> missingPermissions = new ArrayList<String>();
-        if (Build.VERSION.SDK_INT >= 31) { // (API 31) Build.VERSION_CODE.S
-            if (!PermissionHelper.hasPermission(this, BLUETOOTH_SCAN)) {
-                missingPermissions.add(BLUETOOTH_SCAN);
-            }
-            if (!PermissionHelper.hasPermission(this, BLUETOOTH_CONNECT)) {
-                missingPermissions.add(BLUETOOTH_CONNECT);
-            }
-        } else if (Build.VERSION.SDK_INT >= 29) { // (API 29) Build.VERSION_CODES.Q
-            if (!PermissionHelper.hasPermission(this, ACCESS_FINE_LOCATION)) {
-                missingPermissions.add(ACCESS_FINE_LOCATION);
-            }
+        if (!PermissionHelper.hasPermission(this, BLUETOOTH_SCAN)) {
+            missingPermissions.add(BLUETOOTH_SCAN);
+        }
+        if (!PermissionHelper.hasPermission(this, BLUETOOTH_CONNECT)) {
+            missingPermissions.add(BLUETOOTH_CONNECT);
+        }
+        if (!PermissionHelper.hasPermission(this, ACCESS_FINE_LOCATION)) {
+            missingPermissions.add(ACCESS_FINE_LOCATION);
+        }
 
-            String accessBackgroundLocation = this.preferences.getString("accessBackgroundLocation", "false");
-            if (accessBackgroundLocation == "true" && !PermissionHelper.hasPermission(this, ACCESS_BACKGROUND_LOCATION)) {
-                missingPermissions.add(ACCESS_BACKGROUND_LOCATION);
-            }
-        } else {
-            if (!PermissionHelper.hasPermission(this, ACCESS_COARSE_LOCATION)) {
-                missingPermissions.add(ACCESS_COARSE_LOCATION);
-            }
+        String accessBackgroundLocation = this.preferences.getString("accessBackgroundLocation", "false");
+        if (accessBackgroundLocation == "true" && !PermissionHelper.hasPermission(this, ACCESS_BACKGROUND_LOCATION)) {
+            missingPermissions.add(ACCESS_BACKGROUND_LOCATION);
+        }
+        if (!PermissionHelper.hasPermission(this, ACCESS_COARSE_LOCATION)) {
+            missingPermissions.add(ACCESS_COARSE_LOCATION);
         }
         return missingPermissions;
     }
