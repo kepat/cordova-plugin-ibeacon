@@ -19,23 +19,18 @@
 package com.unarin.cordova.beacon;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Handler;
-import android.os.RemoteException;
 import android.util.Log;
 
 import org.altbeacon.beacon.Beacon;
@@ -58,21 +53,30 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CordovaWebView;
+import org.apache.cordova.PermissionHelper;
 import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.InvalidKeyException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
 public class LocationManager extends CordovaPlugin {
+
+    // permissions
+    private static final String ACCESS_BACKGROUND_LOCATION = "android.permission.ACCESS_BACKGROUND_LOCATION"; // API 29
+    private static final String BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"; // API 31
+    private static final String BLUETOOTH_SCAN = "android.permission.BLUETOOTH_SCAN"; // API 31
+    private static final String ACCESS_FINE_LOCATION = "android.permission.ACCESS_FINE_LOCATION"; // API 30
+    private static final String ACCESS_COARSE_LOCATION = "android.permission.ACCESS_COARSE_LOCATION"; // API 29
 
     public static final String TAG = "com.unarin.beacon";
     private static final int PERMISSION_REQUEST = 1;
@@ -143,11 +147,11 @@ public class LocationManager extends CordovaPlugin {
                 ENABLE_ARMA_FILTER_NAME, DEFAULT_ENABLE_ARMA_FILTER);
 
         if(enableArmaFilter){
-               iBeaconManager.setRssiFilterImplClass(ArmaRssiFilter.class);
+            iBeaconManager.setRssiFilterImplClass(ArmaRssiFilter.class);
         }
         else{
-               iBeaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-               RunningAverageRssiFilter.setSampleExpirationMilliseconds(sampleExpirationMilliseconds);
+            iBeaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
+            RunningAverageRssiFilter.setSampleExpirationMilliseconds(sampleExpirationMilliseconds);
         }
         RangedBeacon.setSampleExpirationMilliseconds(sampleExpirationMilliseconds);
 
@@ -164,11 +168,45 @@ public class LocationManager extends CordovaPlugin {
         }
         //TODO AddObserver when page loaded
 
-        final boolean requestPermission = this.preferences.getBoolean(
-                REQUEST_BT_PERMISSION_NAME, DEFAULT_REQUEST_BT_PERMISSION);
-           
-        if(requestPermission)
-              tryToRequestMarshmallowLocationPermission();
+        List<String> missingPermissions = getMissingPermissions();
+        if (missingPermissions.size() > 0) {
+            PermissionHelper.requestPermissions(this, 1, missingPermissions.toArray(new String[0]));
+            return;
+        }
+    }
+
+    // https://github.com/don/cordova-plugin-ble-central/blob/master/src/android/BLECentralPlugin.java#L1062
+    private List<String> getMissingPermissions() {
+        //Android 12 (API 31) and higher
+        // Users MUST accept BLUETOOTH_SCAN and BLUETOOTH_CONNECT
+        // Android 10 (API 29) up to Android 11 (API 30)
+        // Users MUST accept ACCESS_FINE_LOCATION
+        // Users may accept or reject ACCESS_BACKGROUND_LOCATION
+        // Android 9 (API 28) and lower
+        // Users MUST accept ACCESS_COARSE_LOCATION
+        List<String> missingPermissions = new ArrayList<String>();
+        if (Build.VERSION.SDK_INT >= 31) { // (API 31) Build.VERSION_CODE.S
+            if (!PermissionHelper.hasPermission(this, BLUETOOTH_SCAN)) {
+                missingPermissions.add(BLUETOOTH_SCAN);
+            }
+            if (!PermissionHelper.hasPermission(this, BLUETOOTH_CONNECT)) {
+                missingPermissions.add(BLUETOOTH_CONNECT);
+            }
+        } else if (Build.VERSION.SDK_INT >= 29) { // (API 29) Build.VERSION_CODES.Q
+            if (!PermissionHelper.hasPermission(this, ACCESS_FINE_LOCATION)) {
+                missingPermissions.add(ACCESS_FINE_LOCATION);
+            }
+
+            String accessBackgroundLocation = this.preferences.getString("accessBackgroundLocation", "false");
+            if (accessBackgroundLocation == "true" && !PermissionHelper.hasPermission(this, ACCESS_BACKGROUND_LOCATION)) {
+                missingPermissions.add(ACCESS_BACKGROUND_LOCATION);
+            }
+        } else {
+            if (!PermissionHelper.hasPermission(this, ACCESS_COARSE_LOCATION)) {
+                missingPermissions.add(ACCESS_COARSE_LOCATION);
+            }
+        }
+        return missingPermissions;
     }
 
     /**
@@ -264,90 +302,11 @@ public class LocationManager extends CordovaPlugin {
     private BeaconTransmitter createOrGetBeaconTransmitter() {
         if (this.beaconTransmitter == null) {
             final BeaconParser beaconParser = new BeaconParser()
-                .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24");
+                    .setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24");
 
             this.beaconTransmitter = new BeaconTransmitter(cordova.getActivity(), beaconParser);
         }
         return this.beaconTransmitter;
-    }
-
-    @TargetApi(BUILD_VERSION_CODES_M)
-    private void tryToRequestMarshmallowLocationPermission() {
-
-        if (Build.VERSION.SDK_INT < BUILD_VERSION_CODES_M) {
-            Log.i(TAG, "tryToRequestMarshmallowLocationPermission() skipping because API code is " +
-                    "below criteria: " + String.valueOf(Build.VERSION.SDK_INT));
-            return;
-        }
-
-        final Activity activity = cordova.getActivity();
-
-        final Method checkSelfPermissionMethod = getCheckSelfPermissionMethod();
-
-        if (checkSelfPermissionMethod == null) {
-            Log.e(TAG, "Could not obtain the method Activity.checkSelfPermission method. Will " +
-                    "not check for ACCESS_COARSE_LOCATION even though we seem to be on a " +
-                    "supported version of Android.");
-            return;
-        }
-
-        try {
-
-            final Integer permissionCoarseCheckResult = (Integer) checkSelfPermissionMethod.invoke(
-                    activity, Manifest.permission.ACCESS_COARSE_LOCATION);
-            final Integer permissionFineCheckResult = (Integer) checkSelfPermissionMethod.invoke(
-                    activity, Manifest.permission.ACCESS_FINE_LOCATION);
-            final Integer permissionBackgroundCheckResult = (Integer) checkSelfPermissionMethod.invoke(
-                    activity, Manifest.permission.ACCESS_BACKGROUND_LOCATION);
-
-            Log.i(TAG, "Permission check result for ACCESS_COARSE_LOCATION: " +
-                    String.valueOf(permissionCoarseCheckResult));
-
-            if (permissionCoarseCheckResult == PackageManager.PERMISSION_GRANTED && permissionFineCheckResult == PackageManager.PERMISSION_GRANTED && permissionBackgroundCheckResult == PackageManager.PERMISSION_GRANTED) {
-                Log.i(TAG, "Permission for ACCESS_COARSE_LOCATION has already been granted.");
-                return;
-            }
-
-            final Method requestPermissionsMethod = getRequestPermissionsMethod();
-
-            if (requestPermissionsMethod == null) {
-                Log.e(TAG, "Could not obtain the method Activity.requestPermissions. Will " +
-                        "not ask for ACCESS_COARSE_LOCATION even though we seem to be on a " +
-                        "supported version of Android.");
-                return;
-            }
-
-            final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-            builder.setTitle("This app needs location access");
-            builder.setMessage("Please grant location access so this app can detect beacons.");
-            builder.setPositiveButton(android.R.string.ok, null);
-            builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                @SuppressLint("NewApi")
-                @Override
-                public void onDismiss(final DialogInterface dialog) {
-
-                    try {
-                        requestPermissionsMethod.invoke(activity,
-                                new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION},
-                                PERMISSION_REQUEST
-                        );
-                    } catch (IllegalAccessException e) {
-                        Log.e(TAG, "IllegalAccessException while requesting permission for " +
-                                "ACCESS_COARSE_LOCATION:", e);
-                    } catch (InvocationTargetException e) {
-                        Log.e(TAG, "InvocationTargetException while requesting permission for " +
-                                "ACCESS_COARSE_LOCATION:", e);
-                    }
-                }
-            });
-
-            builder.show();
-
-        } catch (final IllegalAccessException e) {
-            Log.w(TAG, "IllegalAccessException while checking for ACCESS_COARSE_LOCATION:", e);
-        } catch (final InvocationTargetException e) {
-            Log.w(TAG, "InvocationTargetException while checking for ACCESS_COARSE_LOCATION:", e);
-        }
     }
 
     private Method getCheckSelfPermissionMethod() {
@@ -1175,7 +1134,7 @@ public class LocationManager extends CordovaPlugin {
                 7
             ]
         */
-        
+
         JSONObject arguments = args.optJSONObject(0); // get first object
         String identifier = arguments.getString("identifier");
 
@@ -1319,7 +1278,7 @@ public class LocationManager extends CordovaPlugin {
         Identifier id1 = uuid != null ? Identifier.parse(uuid) : null;
         Identifier id2 = major != null ? Identifier.parse(major) : null;
         Identifier id3 = minor != null ? Identifier.parse(minor) : null;
-        return new Region(identifier, id1, id2, id3);
+        return new Region(identifier, null, id2, id3);
     }
 
 
